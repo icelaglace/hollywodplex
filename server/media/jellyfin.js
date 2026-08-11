@@ -51,7 +51,7 @@ jellyfinClient.interceptors.response.use(
       err.status = status;
       return Promise.reject(err);
     }
-    if (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
+    if (['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'ENOTFOUND'].includes(error.code)) {
       const err = new Error('jellyfin server is unreachable');
       err.status = 502;
       return Promise.reject(err);
