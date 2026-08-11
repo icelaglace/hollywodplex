@@ -1,12 +1,14 @@
 # hollywoodplex
 
-a 3d video rental store for your plex library. walk the aisles of a
-90s-style video shop rendered in three.js, browse your own films and
-shows as cases on the shelves, and play them without leaving the store.
+a 3d video rental store for your plex or jellyfin library. walk the
+aisles of a 90s-style video shop rendered in three.js, browse your own
+films and shows as cases on the shelves, and play them without leaving
+the store.
 
-the backend is a small express server that proxies all plex api calls,
-so your plex token never reaches the browser. the frontend is plain
-html, css and javascript es modules with no build step.
+the backend is a small express server that proxies all media server
+api calls, so your plex token or jellyfin api key never reaches the
+browser. the frontend is plain html, css and javascript es modules
+with no build step.
 
 ## features
 
@@ -15,8 +17,9 @@ gondolas, with genre sections sized to your collection, featured racks
 (new releases, just in, top rated, staff picks, continue watching),
 themed sections such as classics and westerns, search that teleports
 you to a title's shelf spot, in-store playback with resume and watch
-state synced back to plex, tv season and episode browsing, trailers,
-a poster picker and a fix-match tool for files plex never identified.
+state synced back to your server, tv season and episode browsing,
+trailers, a poster picker and a fix-match tool for files your server
+never identified.
 
 with an anthropic api key configured it also stocks llm-curated
 shelves (recommendations, a seasonal shelf, date night picks and a
@@ -25,7 +28,8 @@ cult classics aisle), refreshed every few days and cached on disk.
 ## requirements
 
 1. node.js 20 or newer
-2. a reachable plex media server and its token
+2. a reachable plex media server and its token, **or** a reachable
+   jellyfin server (10.8 or newer) and an api key
 3. a browser with webgl (a 2d grid fallback exists without it)
 
 ## install
@@ -37,9 +41,12 @@ npm install
 cp .env.example .env
 ```
 
-then edit `.env`:
+then edit `.env` and pick your media server.
+
+for plex:
 
 ```
+MEDIA_SERVER=plex
 PLEX_SERVER_URL=http://YOUR_PLEX_SERVER_IP:32400
 PLEX_TOKEN=your-plex-token-here
 PORT=3478
@@ -51,6 +58,30 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 #OLLAMA_URL=http://localhost:11434
 #OLLAMA_MODEL=llama3.1:8b
 ```
+
+for jellyfin:
+
+```
+MEDIA_SERVER=jellyfin
+JELLYFIN_SERVER_URL=http://YOUR_JELLYFIN_SERVER_IP:8096
+JELLYFIN_API_KEY=your-jellyfin-api-key
+# optional: which user's library and watch state to use (name or id);
+# defaults to the first administrator
+JELLYFIN_USER=
+PORT=3478
+
+# optional: enables the llm-curated shelves and match judging
+ANTHROPIC_API_KEY=your-anthropic-api-key
+
+# or use a local ollama server instead of anthropic
+#OLLAMA_URL=http://localhost:11434
+#OLLAMA_MODEL=llama3.1:8b
+```
+
+`MEDIA_SERVER` may be omitted when only one server's variables are
+set — the app infers it. keeping both blocks filled in lets you flip
+between servers by changing the one line (or starting the app with
+`MEDIA_SERVER=jellyfin npm start`).
 
 the llm features work with either backend. anthropic is used when both
 are configured (set `LLM_PROVIDER=ollama` to override), and the
@@ -65,7 +96,7 @@ curated shelves are cached in `data/shelves.json` and refreshed in the
 background every three days; `POST /api/recommendations/refresh`
 forces a regeneration immediately.
 
-`.env` is gitignored — keep your token and keys there and nowhere else.
+`.env` is gitignored — keep your tokens and keys there and nowhere else.
 
 ## getting your plex token
 
@@ -78,14 +109,26 @@ forces a regeneration immediately.
 plex documents this at
 https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
 
-treat the token like a password: it grants full access to your plex
-server. it lives only in `.env` and is stripped from anything this app
-sends to the browser.
+## getting your jellyfin api key
+
+1. sign in to jellyfin web as an administrator
+2. open the dashboard (user menu > dashboard), then advanced > api keys
+3. click "+" to create a key, name it (e.g. `hollywodplex`), and copy
+   the value into `JELLYFIN_API_KEY`
+
+the store browses libraries and records watch state as one jellyfin
+user: the first administrator by default, or set `JELLYFIN_USER` to a
+user name or id to pick someone else.
+
+treat tokens and api keys like passwords: they grant full access to
+your media server. they live only in `.env` and are stripped from
+anything this app sends to the browser.
 
 ## run
 
 ```bash
-npm test-plex   # optional: verify the server and token work
+npm run test-plex       # optional: verify the plex server and token work
+npm run test-jellyfin   # optional: verify the jellyfin server and key work
 npm start
 ```
 
@@ -99,13 +142,15 @@ terminal, m to mute the ambience, and escape to release the mouse.
 
 ## fixing unmatched files
 
-files plex's agent could not identify show their filename as the
-title with no artwork. open such a film in the store and use the
-"fix match" button to search the agent and apply the right match.
+files the server's metadata agent could not identify show their
+filename as the title with no artwork. open such a film in the store
+and use the "fix match" button to search the providers and apply the
+right match. this works on both plex and jellyfin.
 
 for bulk cleanup there is a three-stage pipeline (requires an llm
 backend — anthropic or ollama — since a model judges each candidate
-list):
+list). it talks to the running app's api, so it works with whichever
+media server is configured:
 
 ```bash
 node tools/fix-unmatched/scan.js    # gather match candidates
@@ -114,7 +159,8 @@ node tools/fix-unmatched/apply.js   # apply and write a report
 ```
 
 each stage checkpoints to `data/fix-unmatched.json` and is safe to
-re-run; matches can be reversed from plex with "unmatch".
+re-run; matches can be reversed from plex with "unmatch" or from
+jellyfin with "identify".
 
 ## the data directory
 
@@ -129,17 +175,17 @@ means everything is refetched or regenerated on demand.
 this app is designed for your local network only, and even there it
 is deliberately open: there is no authentication, so anyone on your
 lan can open the store, browse your whole library and stream your
-media. the config endpoint also reveals your plex server's lan
-address and machine identifier to any client, because the "open in
-plex" deep links need them. if your lan has untrusted devices or
+media. the config endpoint also reveals your media server's lan
+address and identifier to any client, because the "open in plex /
+jellyfin" deep links need them. if your lan has untrusted devices or
 guests, keep that in mind before running it.
 
 do not expose the app to the internet — port forwarding or a public
 reverse proxy would hand your entire library to anyone who finds it.
 if you want remote access, put it behind a vpn (wireguard, tailscale)
-instead. the image and stream proxies only accept plex-relative
-paths, so the plex token itself cannot be redirected to other hosts
-and never reaches the browser.
+instead. the image and stream proxies only accept server-relative
+paths, so the plex token or jellyfin api key cannot be redirected to
+other hosts and never reaches the browser.
 
 
 

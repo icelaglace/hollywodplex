@@ -5,7 +5,7 @@
  */
 
 import store from '../store.js';
-import { fetchMetadata, fetchChildren } from '../api/plex-api.js';
+import { fetchMetadata, fetchChildren } from '../api/media-api.js';
 import { getConfig } from '../config.js';
 import { createPlayer, canDirectPlay, streamUrl } from './player.js';
 import { attachPosterPicker } from './poster-picker.js';
@@ -64,11 +64,31 @@ export function createModal() {
   return { show, hide, isVisible: () => overlay.style.display !== 'none' };
 }
 
-function plexWebUrl(item) {
+/*
+ * name of the configured media server, for button labels.
+ */
+function serverName() {
+  return getConfig().serverType === 'jellyfin' ? 'jellyfin' : 'plex';
+}
+
+/*
+ * deep link to the item in the media server's own web app, used when
+ * the browser cannot direct-play a file.
+ */
+function serverWebUrl(item) {
   const cfg = getConfig();
+
+  if (cfg.serverType === 'jellyfin') {
+    if (cfg.serverUrl) {
+      const serverId = cfg.serverId ? `&serverId=${encodeURIComponent(cfg.serverId)}` : '';
+      return `${cfg.serverUrl}/web/index.html#!/details?id=${encodeURIComponent(item.ratingKey)}${serverId}`;
+    }
+    return '#';
+  }
+
   const metadataKey = encodeURIComponent(`/library/metadata/${item.ratingKey}`);
-  if (cfg.machineIdentifier && cfg.plexServerUrl) {
-    return `${cfg.plexServerUrl}/web/index.html#!/server/${cfg.machineIdentifier}/details?key=${metadataKey}`;
+  if (cfg.machineIdentifier && cfg.serverUrl) {
+    return `${cfg.serverUrl}/web/index.html#!/server/${cfg.machineIdentifier}/details?key=${metadataKey}`;
   }
   return `https://app.plex.tv/desktop/#!/search?query=${encodeURIComponent(item.title)}`;
 }
@@ -127,10 +147,10 @@ function renderItem(item, container) {
         }),
       }, item.viewOffset > 0 ? 'resume' : 'watch now'));
     } else {
-      // container the browser can't play — hand off to plex
+      // container the browser can't play — hand off to the media server
       actions.appendChild(el('a', {
-        class: 'modal-watch-btn', href: plexWebUrl(item), target: '_blank', rel: 'noopener',
-      }, 'watch on plex'));
+        class: 'modal-watch-btn', href: serverWebUrl(item), target: '_blank', rel: 'noopener',
+      }, `watch on ${serverName()}`));
     }
   }
 
@@ -194,11 +214,11 @@ function renderItem(item, container) {
     info.appendChild(div({ class: 'modal-media-info' }, bits.join(' / ')));
   }
 
-  // plex link always available as a fallback
+  // media server link always available as a fallback
   info.appendChild(el('a', {
-    class: 'modal-play-link', href: plexWebUrl(item), target: '_blank', rel: 'noopener',
+    class: 'modal-play-link', href: serverWebUrl(item), target: '_blank', rel: 'noopener',
     style: 'margin-top:12px;',
-  }, 'open in plex'));
+  }, `open in ${serverName()}`));
 
   layout.appendChild(info);
   container.appendChild(layout);
@@ -248,7 +268,7 @@ async function loadEpisodes(show, season, episodeList) {
               ratingKey: ep.ratingKey,
             });
           } else {
-            window.open(plexWebUrl(ep), '_blank', 'noopener');
+            window.open(serverWebUrl(ep), '_blank', 'noopener');
           }
         },
       },

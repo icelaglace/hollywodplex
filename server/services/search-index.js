@@ -1,18 +1,13 @@
 /*
- * search-index.js — in-memory search index over the full plex library.
- * fetches complete section listings in pages, keeps a minimal record per
- * item, and serves ranked substring searches instantly. entries refresh
- * lazily (stale-while-revalidate) so plex is queried at most once per ttl.
+ * search-index.js — in-memory search index over the full library.
+ * fetches complete section listings in pages from the media backend,
+ * keeps a minimal record per item, and serves ranked substring searches
+ * instantly. entries refresh lazily (stale-while-revalidate) so the
+ * media server is queried at most once per ttl.
  */
 
 const INDEX_TTL = 10 * 60 * 1000; // 10 minutes
 const PAGE_SIZE = 1000;
-
-function rewriteArtworkUrl(path) {
-  if (!path) return null;
-  if (path.startsWith('http')) return path;
-  return `/image?url=${encodeURIComponent(path)}`;
-}
 
 /*
  * score a match: lower is better, -1 means no match.
@@ -26,7 +21,7 @@ function scoreMatch(haystack, query) {
   return -1;
 }
 
-export function makeSearchIndex(plexClient) {
+export function makeSearchIndex(backend) {
   // sectionId -> { items, fetchedAt, fetching }
   const index = new Map();
 
@@ -36,32 +31,23 @@ export function makeSearchIndex(plexClient) {
     let total = Infinity;
 
     while (start < total) {
-      const { data } = await plexClient.get(`/library/sections/${sectionId}/all`, {
-        headers: {
-          'X-Plex-Container-Start': String(start),
-          'X-Plex-Container-Size': String(PAGE_SIZE),
-        },
-      });
-      const container = data.MediaContainer;
-      if (!container) break;
-      total = container.totalSize ?? 0;
+      const page = await backend.getSectionItems(sectionId, { start, size: PAGE_SIZE });
+      total = page.totalSize ?? 0;
 
-      const raw = container.Metadata || [];
-      for (const m of (Array.isArray(raw) ? raw : [raw])) {
-        const directors = m.Director
-          ? (Array.isArray(m.Director) ? m.Director : [m.Director]).map(d => d.tag)
-          : [];
+      for (const m of page.items || []) {
+        const directors = (m.directors || []).map(d => d.tag);
         items.push({
           ratingKey: m.ratingKey,
           title: m.title,
-          year: m.year ? parseInt(m.year, 10) : null,
+          year: m.year,
           type: m.type,
-          rating: m.rating ? parseFloat(m.rating) : null,
-          thumb: rewriteArtworkUrl(m.thumb),
+          rating: m.rating,
+          thumb: m.thumb,
           directors: directors.map(tag => ({ tag })),
           searchText: [m.title, ...directors].join(' '),
         });
       }
+      if (!page.items || page.items.length === 0) break;
       start += PAGE_SIZE;
     }
 

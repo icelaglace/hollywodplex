@@ -1,13 +1,15 @@
 /*
  * index.js — express application entry point.
- * serves the frontend and mounts api proxy routes.
+ * serves the frontend and mounts api proxy routes over the configured
+ * media backend (plex or jellyfin).
  */
 
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import config from './config.js';
-import plexRoutes from './routes/plex.js';
+import backend from './media/index.js';
+import mediaRoutes from './routes/media.js';
 import imageRoutes from './routes/image.js';
 import streamRoutes from './routes/stream.js';
 import matchRoutes from './routes/match.js';
@@ -25,28 +27,21 @@ app.use(express.static(publicDir));
 // api routes
 app.get('/api/config', async (_req, res, next) => {
   try {
-    // import plex-client lazily to avoid circular dependency with config
-    const { default: plexClient } = await import('./services/plex-client.js');
-    const { data } = await plexClient.get('/library/sections');
-    const sections = (data.MediaContainer?.Directory || []).map(s => ({
+    const sections = (await backend.getSections()).map(s => ({
       key: s.key,
       title: s.title,
       type: s.type,
     }));
 
-    // fetch the server machine identifier for building plex web deep links
-    let machineIdentifier = null;
-    try {
-      const identity = await plexClient.get('/identity');
-      machineIdentifier = identity.data.MediaContainer?.machineIdentifier || null;
-    } catch {
-      // deep links will fall back to the app.plex.tv search page
-    }
+    // server identity for building web-app deep links
+    const identity = await backend.getServerIdentity();
 
     res.json({
+      serverType: backend.type,
       sections,
-      machineIdentifier,
-      plexServerUrl: config.plexServerUrl,
+      machineIdentifier: identity.machineIdentifier,
+      serverId: identity.serverId,
+      serverUrl: backend.serverUrl,
       maxTextureDimension: 512,
       concurrentLoads: 4,
       shelfColumns: 6,
@@ -56,8 +51,12 @@ app.get('/api/config', async (_req, res, next) => {
   }
 });
 
+// canonical mounts, plus /api/plex/* aliases kept for older scripts
+// (the bundled fix-unmatched pipeline calls them)
+app.use('/api/media/matches', matchRoutes);
+app.use('/api/media', mediaRoutes);
 app.use('/api/plex/matches', matchRoutes);
-app.use('/api/plex', plexRoutes);
+app.use('/api/plex', mediaRoutes);
 app.use('/image', imageRoutes);
 app.use('/stream', streamRoutes);
 app.use('/api/recommendations', recommendationRoutes);
@@ -67,5 +66,5 @@ app.use(errorHandler);
 
 app.listen(config.port, () => {
   console.log(`hollywodplex running at http://localhost:${config.port}`);
-  console.log(`plex server: ${config.plexServerUrl}`);
+  console.log(`media server: ${backend.type} at ${backend.serverUrl}`);
 });

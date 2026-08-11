@@ -11,7 +11,7 @@ function errorHandler(err, _req, res, _next) {
   }
 
   res.status(status).json({
-    error: status === 502 ? 'plex_unreachable' : 'request_failed',
+    error: status === 502 ? 'server_unreachable' : 'request_failed',
     message,
   });
 }

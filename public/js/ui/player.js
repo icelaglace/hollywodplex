@@ -1,7 +1,7 @@
 /*
  * player.js — in-store video player overlay.
  * plays browser-compatible media (h264 mp4) streamed through the backend
- * proxy; anything else falls back to the plex web deep link.
+ * proxy; anything else falls back to the media server's web app.
  */
 
 import { div, button } from '../utils/dom.js';
@@ -36,7 +36,8 @@ export function streamUrl(item) {
 const TIMELINE_INTERVAL = 10000; // report progress every 10 seconds
 
 /*
- * fire-and-forget progress report so plex keeps watch state in sync.
+ * fire-and-forget progress report so the media server keeps watch
+ * state in sync.
  */
 function reportTimeline(ratingKey, state, timeMs, durationMs) {
   if (!ratingKey) return;
@@ -46,7 +47,7 @@ function reportTimeline(ratingKey, state, timeMs, durationMs) {
     time: Math.floor(timeMs),
     duration: Math.floor(durationMs),
   });
-  fetch(`/api/plex/timeline?${params}`).catch(() => { /* best effort */ });
+  fetch(`/api/media/timeline?${params}`).catch(() => { /* best effort */ });
 }
 
 export function createPlayer() {
@@ -87,7 +88,7 @@ export function createPlayer() {
 
   /*
    * play a media url. resumeMs seeks to a resume point when set,
-   * ratingKey enables progress reporting back to plex.
+   * ratingKey enables progress reporting back to the media server.
    */
   function play(url, { title = '', resumeMs = 0, ratingKey = null } = {}) {
     close();
@@ -106,7 +107,7 @@ export function createPlayer() {
       }, { once: true });
     }
 
-    // keep plex in sync: periodic reports while playing, plus state changes
+    // keep the server in sync: periodic reports while playing, plus state changes
     if (ratingKey) {
       const report = (state) => reportTimeline(
         ratingKey, state, video.currentTime * 1000, (video.duration || 0) * 1000,

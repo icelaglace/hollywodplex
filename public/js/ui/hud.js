@@ -3,6 +3,7 @@
  */
 
 import store from '../store.js';
+import { getConfig } from '../config.js';
 import { div, span } from '../utils/dom.js';
 
 export function createHUD() {
@@ -13,6 +14,12 @@ export function createHUD() {
   const lockPrompt = document.getElementById('hud-lock-prompt');
 
   if (!hudEl) return { show() {}, hide() {}, update() {}, showMessage() {} };
+
+  // the video-case badge on the hover card names the configured server
+  const hoverBadge = hudEl.querySelector('.hover-card-badge');
+  if (hoverBadge && getConfig().serverType === 'jellyfin') {
+    hoverBadge.textContent = 'JELLYFIN';
+  }
 
   let fpsCounter = { frames: 0, lastTime: performance.now(), display: 0 };
   let showFps = false;

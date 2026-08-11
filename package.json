@@ -1,12 +1,13 @@
 {
   "name": "hollywodplex",
   "version": "1.0.0",
-  "description": "a 3D video rental store for your plex library",
+  "description": "a 3D video rental store for your plex or jellyfin library",
   "main": "server/index.js",
   "type": "module",
   "scripts": {
     "start": "node server/index.js",
-    "test-plex": "node tools/test-plex.js"
+    "test-plex": "node tools/test-plex.js",
+    "test-jellyfin": "node tools/test-jellyfin.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",

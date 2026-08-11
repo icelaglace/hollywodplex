@@ -5,15 +5,15 @@
  */
 
 import { Router } from 'express';
-import plexClient from '../services/plex-client.js';
+import backend from '../media/index.js';
 import { getRecommendations } from '../services/recommender.js';
 import { llmAvailable } from '../services/llm-client.js';
 
 const router = Router();
 
 async function firstMovieSection() {
-  const { data } = await plexClient.get('/library/sections');
-  const section = (data.MediaContainer?.Directory || []).find(s => s.type === 'movie');
+  const sections = await backend.getSections();
+  const section = sections.find(s => s.type === 'movie');
   return section ? section.key : null;
 }
 

@@ -1,10 +1,10 @@
 /*
- * poster-picker.js — choose between the candidate posters plex's
- * agents offer for a film. selecting one tells plex to switch, which
+ * poster-picker.js — choose between the candidate posters the media
+ * server's providers offer for a film. selecting one switches it, which
  * bumps the artwork url version so every cache refreshes naturally.
  */
 
-import { fetchPosters, setPoster } from '../api/plex-api.js';
+import { fetchPosters, setPoster } from '../api/media-api.js';
 import { div, button, img } from '../utils/dom.js';
 
 export function attachPosterPicker(container, item, posterImg) {
@@ -43,7 +43,7 @@ export function attachPosterPicker(container, item, posterImg) {
             for (const el of grid.children) el.classList.remove('selected');
             option.classList.add('selected');
             // instant feedback on the card; the shelf case updates on
-            // the next store load once plex re-versions the artwork
+            // the next store load once the artwork url re-versions
             if (posterImg) posterImg.src = p.thumb;
           } catch (err) {
             console.warn('[poster-picker] failed to set poster:', err.message);

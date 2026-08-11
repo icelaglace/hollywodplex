@@ -1,11 +1,11 @@
 /*
- * fix-match.js — search plex's metadata agent for the right match and
- * apply it from inside the film modal. films that were never matched
- * (guid local://) show their filename as the title and have no provider
- * artwork; fixing the match pulls proper metadata and poster choices.
+ * fix-match.js — search the media server's metadata providers for the
+ * right match and apply it from inside the film modal. films that were
+ * never matched (guid local://) show their filename as the title and
+ * have no provider artwork; fixing the match pulls proper metadata.
  */
 
-import { fetchMatches, applyMatch } from '../api/plex-api.js';
+import { fetchMatches, applyMatch } from '../api/media-api.js';
 import store from '../store.js';
 import { div, span, button, el } from '../utils/dom.js';
 

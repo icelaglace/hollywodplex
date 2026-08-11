@@ -1,6 +1,6 @@
 /*
- * plex-cache.js — simple in-memory ttl cache for plex api responses.
- * reduces load on the plex server during repeated browsing.
+ * cache.js — simple in-memory ttl cache for media api responses.
+ * reduces load on the media server during repeated browsing.
  */
 
 const DEFAULT_TTLS = {
@@ -9,7 +9,7 @@ const DEFAULT_TTLS = {
   image: 86_400_000,  // 24 hours for images
 };
 
-class PlexCache {
+class ResponseCache {
   #store = new Map();
   #intervals = new Map();
 
@@ -77,7 +77,7 @@ class PlexCache {
 }
 
 // singleton
-const cache = new PlexCache();
+const cache = new ResponseCache();
 
 // purge expired entries every 5 minutes
 setInterval(() => cache.purge(), 300_000);

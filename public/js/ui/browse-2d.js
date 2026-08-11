@@ -5,7 +5,7 @@
  */
 
 import store from '../store.js';
-import { fetchItems, search as searchApi } from '../api/plex-api.js';
+import { fetchItems, search as searchApi } from '../api/media-api.js';
 import { div, img, el, span } from '../utils/dom.js';
 
 export function createBrowse2D() {

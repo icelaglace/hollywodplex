@@ -9,7 +9,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import plexClient from './plex-client.js';
+import backend from '../media/index.js';
 import { generateStructured } from './llm-client.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -27,28 +27,21 @@ async function fetchCatalogue(sectionId) {
   let total = Infinity;
 
   while (start < total) {
-    const { data } = await plexClient.get(`/library/sections/${sectionId}/all`, {
-      headers: {
-        'X-Plex-Container-Start': String(start),
-        'X-Plex-Container-Size': '1000',
-      },
-    });
-    const container = data.MediaContainer;
-    if (!container) break;
-    total = container.totalSize ?? 0;
+    const page = await backend.getSectionItems(sectionId, { start, size: 1000 });
+    total = page.totalSize ?? 0;
 
-    for (const m of container.Metadata || []) {
+    for (const m of page.items || []) {
       items.push({
         ratingKey: m.ratingKey,
         title: m.title,
-        year: m.year ? parseInt(m.year, 10) : null,
-        genres: (Array.isArray(m.Genre) ? m.Genre : m.Genre ? [m.Genre] : [])
-          .slice(0, 2).map(g => g.tag),
-        rating: m.rating ? parseFloat(m.rating) : (m.audienceRating ? parseFloat(m.audienceRating) : null),
-        viewCount: m.viewCount ? parseInt(m.viewCount, 10) : 0,
-        lastViewedAt: m.lastViewedAt ? parseInt(m.lastViewedAt, 10) : null,
+        year: m.year,
+        genres: (m.genres || []).slice(0, 2).map(g => g.tag),
+        rating: m.rating ?? m.audienceRating ?? null,
+        viewCount: m.viewCount || 0,
+        lastViewedAt: m.lastViewedAt,
       });
     }
+    if (!page.items || page.items.length === 0) break;
     start += 1000;
   }
 

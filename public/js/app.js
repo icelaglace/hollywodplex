@@ -1,6 +1,6 @@
 /*
  * app.js — application entry point.
- * fetches config, initialises the 3d scene, loads plex data,
+ * fetches config, initialises the 3d scene, loads the library,
  * wires controls, ui, and starts the animation loop.
  */
 
@@ -20,7 +20,7 @@ import { setupPointerLock } from './controls/pointer-lock.js';
 import { CaseRaycaster } from './controls/raycaster.js';
 import * as THREE from 'three';
 import { ImageLoader } from './api/image-loader.js';
-import { fetchConfig, fetchItems, fetchRecommendations } from './api/plex-api.js';
+import { fetchConfig, fetchItems, fetchRecommendations } from './api/media-api.js';
 import { setConfig } from './config.js';
 import { createLoadingScreen } from './ui/loading-screen.js';
 import { createHUD } from './ui/hud.js';
@@ -112,7 +112,8 @@ async function main() {
     store.setLoadingProgress(0.6);
   } catch (err) {
     console.error('[app] failed to fetch items:', err.message);
-    loadingScreen.setProgress(0.6, 'failed to load library. check that plex is running.');
+    const serverName = config.serverType === 'jellyfin' ? 'jellyfin' : 'plex';
+    loadingScreen.setProgress(0.6, `failed to load library. check that ${serverName} is running.`);
     return;
   }
 

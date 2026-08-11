@@ -1,10 +1,10 @@
 /*
  * search.js — retro terminal-style search overlay.
- * searches the plex library via the api as the user types.
+ * searches the library via the api as the user types.
  */
 
 import store from '../store.js';
-import { search as searchApi } from '../api/plex-api.js';
+import { search as searchApi } from '../api/media-api.js';
 import { div, span, img } from '../utils/dom.js';
 
 export function createSearch(container) {

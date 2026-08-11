@@ -1,14 +1,14 @@
 /*
  * image.js — artwork proxy route.
- * fetches images from the plex server with authentication,
+ * fetches images from the media server with authentication,
  * caches them aggressively, and streams the result to the browser.
- * this keeps the plex token off the client while allowing artwork display.
+ * this keeps the server token off the client while allowing artwork display.
  */
 
 import { Router } from 'express';
 import sharp from 'sharp';
-import plexClient from '../services/plex-client.js';
-import cache from '../services/plex-cache.js';
+import backend from '../media/index.js';
+import cache from '../services/cache.js';
 import { getCachedImage, putCachedImage } from '../services/image-disk-cache.js';
 
 // allowed resize widths — a fixed set so the disk cache stays bounded
@@ -34,36 +34,38 @@ function guessMimeType(url) {
   for (const [ext, mime] of Object.entries(MIME_TYPES)) {
     if (lower.endsWith(ext)) return mime;
   }
-  return 'image/jpeg'; // default for plex artwork
+  return 'image/jpeg'; // default for library artwork
 }
 
 router.get('/', async (req, res, next) => {
   try {
-    let { url, width, height } = req.query;
+    const { url: rawUrl, width } = req.query;
 
-    if (!url) {
+    if (!rawUrl) {
       return res.status(400).json({ error: 'missing_url', message: 'url query parameter is required' });
     }
 
-    // safety: strip any X-Plex-Token that may have leaked into the url,
-    // and require a plex-relative path so the token can never be sent
+    // safety: strip any auth token that may have leaked into the url,
+    // and require a server-relative path so the token can never be sent
     // to an arbitrary external host
-    url = url.replace(/[?&]X-Plex-Token=[^&]*/gi, '');
-    if (!url.startsWith('/')) {
-      return res.status(400).json({ error: 'bad_url', message: 'url must be a plex-relative path' });
+    const url = backend.sanitizeImagePath(rawUrl);
+    if (!url) {
+      return res.status(400).json({ error: 'bad_url', message: 'url must be a server-relative path' });
     }
 
     const serve = (buffer, contentType) => {
       res.set('Content-Type', contentType);
-      // one hour, not a day: plex occasionally replaces artwork without
-      // changing the url (e.g. agent match landing after first browse),
-      // so bounded browser staleness beats a stuck wrong poster
+      // one hour, not a day: the server occasionally replaces artwork
+      // without changing the url (e.g. agent match landing after first
+      // browse), so bounded browser staleness beats a stuck wrong poster
       res.set('Cache-Control', 'public, max-age=3600');
       res.send(buffer);
     };
 
     // snap the requested width to the allowed variant set; no width
-    // (or an unknown one) serves the full-size master
+    // (or an unknown one) serves the full-size master. keys stay
+    // backend-neutral: plex and jellyfin paths cannot collide, and
+    // existing disk caches survive an upgrade.
     const w = ALLOWED_WIDTHS.has(parseInt(width, 10)) ? parseInt(width, 10) : null;
     const sizedKey = cache.constructor.key('GET', `image:${url}?width=${w || ''}`);
     const masterKey = cache.constructor.key('GET', `image:${url}?width=`);
@@ -74,17 +76,13 @@ router.get('/', async (req, res, next) => {
     const disk = await getCachedImage(sizedKey);
     if (disk) return serve(disk.buffer, disk.contentType);
 
-    // get the full-size master: disk first, then plex (once ever)
+    // get the full-size master: disk first, then the media server (once ever)
     let master = w ? await getCachedImage(masterKey) : null;
     if (!master) {
-      const response = await plexClient.get(url, {
-        responseType: 'arraybuffer',
-        // image requests can take longer
-        timeout: 20000,
-      });
+      const fetched = await backend.fetchImage(url);
       master = {
-        buffer: Buffer.from(response.data),
-        contentType: response.headers['content-type'] || guessMimeType(url),
+        buffer: fetched.buffer,
+        contentType: fetched.contentType || guessMimeType(url),
       };
       putCachedImage(masterKey, master.buffer, master.contentType); // fire and forget
     }
