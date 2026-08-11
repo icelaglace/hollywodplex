@@ -171,17 +171,6 @@
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
 }
 
-.hover-card-badge {
-  background: #d42027;
-  color: #f2f0ea;
-  font-weight: bold;
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  padding: 5px 9px;
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-
 .hover-card-title {
   color: #f2f0ea;
   font-weight: bold;
